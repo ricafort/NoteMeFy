@@ -45,21 +45,25 @@ class LocationService {
     );
   }
 
-  Future<void> saveHomeLocation() async {
+  Future<bool> saveHomeLocation() async {
     final prefs = await SharedPreferences.getInstance();
     final pos = await getCurrentLocation();
     if (pos != null) {
-      prefs.setDouble(homeLatKey, pos.latitude);
-      prefs.setDouble(homeLngKey, pos.longitude);
+      await prefs.setDouble(homeLatKey, pos.latitude);
+      await prefs.setDouble(homeLngKey, pos.longitude);
+      return true;
     }
+    return false;
   }
 
-  Future<void> saveWorkLocation() async {
+  Future<bool> saveWorkLocation() async {
     final prefs = await SharedPreferences.getInstance();
     final pos = await getCurrentLocation();
     if (pos != null) {
-      prefs.setDouble(workLatKey, pos.latitude);
-      prefs.setDouble(workLngKey, pos.longitude);
+      await prefs.setDouble(workLatKey, pos.latitude);
+      await prefs.setDouble(workLngKey, pos.longitude);
+      return true;
     }
+    return false;
   }
 }

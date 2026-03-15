@@ -1,0 +1,280 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:notemefy/data/repositories/note_repository.dart';
+import 'package:notemefy/domain/models/note.dart';
+import 'package:notemefy/services/haptic_service.dart';
+import 'package:notemefy/services/notification_service.dart';
+import 'package:intl/intl.dart';
+import 'package:notemefy/presentation/screens/settings_screen.dart';
+import 'package:notemefy/services/font_settings_service.dart';
+
+class ReviewScreen extends ConsumerWidget {
+  const ReviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the reactive stream of notes
+    final notesAsync = ref.watch(notesStreamProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Captured Ideas', style: TextStyle(fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 32),
+          onPressed: () {
+            ref.read(hapticServiceProvider).click();
+            Navigator.pop(context);
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white54),
+            onPressed: () {
+              ref.read(hapticServiceProvider).click();
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: notesAsync.when(
+        data: (notes) {
+          if (notes.isEmpty) {
+            return const Center(
+              child: Text(
+                'Mind is clear.',
+                style: TextStyle(color: Colors.white24, fontSize: 18),
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: notes.length,
+            itemBuilder: (context, index) {
+              final note = notes[index];
+              return _NoteCard(note: note);
+            },
+          );
+        },
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: Colors.blueAccent),
+        ),
+        error: (error, stackTrace) => Center(
+          child: Text(
+            'Cannot load ideas: $error',
+            style: const TextStyle(color: Colors.redAccent, fontSize: 16),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoteCard extends ConsumerWidget {
+  final Note note;
+
+  const _NoteCard({required this.note});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isBusiness = note.category == 'Business';
+    final settings = ref.watch(fontSettingsProvider);
+
+    return GestureDetector(
+      onTap: () => _showEditSheet(context, ref, settings),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isBusiness ? Colors.amber.withOpacity(0.3) : Colors.white.withOpacity(0.1)),
+        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _getIconForTrigger(note.triggerType),
+                    size: 16,
+                    color: Colors.blueAccent,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    note.triggerType.name.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.blueAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+              if (isBusiness)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('WORK', style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            note.content,
+            style: TextStyle(color: Colors.white, fontSize: settings.fontSize * 0.6, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                DateFormat('MMM d, h:mm a').format(note.createdAt),
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+              Row(
+                children: [
+                  Switch(
+                    value: note.isActive,
+                    onChanged: (val) async {
+                      ref.read(hapticServiceProvider).click();
+                      final updated = note.copyWith(isActive: val);
+                      await ref.read(noteRepositoryProvider).updateNote(updated);
+                      
+                      if (!val) {
+                        // Cancel the notification if the note is disabled
+                        await ref.read(notificationServiceProvider).cancelNotification(note.id);
+                      } else {
+                        // Reschedule if re-enabled (simplified tonight logic for now)
+                        if (note.triggerType == TriggerType.tonight) {
+                          await ref.read(notificationServiceProvider).scheduleTonightTrigger(updated);
+                        }
+                      }
+                    },
+                    activeColor: Colors.blueAccent,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                    onPressed: () async {
+                      ref.read(hapticServiceProvider).click();
+                      await ref.read(noteRepositoryProvider).deleteNote(note.id);
+                      // Cancel service worker notification
+                      await ref.read(notificationServiceProvider).cancelNotification(note.id);
+                    },
+                  ),
+                ],
+              )
+            ],
+          )
+        ],
+      ),
+    ),
+  );
+}
+
+  void _showEditSheet(BuildContext context, WidgetRef ref, FontSettings settings) {
+    final textController = TextEditingController(text: note.content);
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+              ),
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Edit Idea', style: TextStyle(color: Colors.white54, fontSize: 14)),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: TextField(
+                      controller: textController,
+                      autofocus: true,
+                      maxLines: null,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: settings.fontSize * 0.7,
+                        height: 1.4,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Type an idea...',
+                        hintStyle: TextStyle(color: Colors.white24),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () async {
+                      if (textController.text.trim().isEmpty) return;
+                      ref.read(hapticServiceProvider).click();
+                      
+                      final updated = note.copyWith(content: textController.text.trim());
+                      await ref.read(noteRepositoryProvider).updateNote(updated);
+                      
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text('Update Note', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+    );
+  }
+
+  IconData _getIconForTrigger(TriggerType type) {
+    switch (type) {
+      case TriggerType.home:
+        return Icons.home_rounded;
+      case TriggerType.work:
+        return Icons.business_rounded;
+      case TriggerType.tonight:
+        return Icons.nights_stay_rounded;
+      case TriggerType.custom:
+        return Icons.access_time_filled_rounded;
+      case TriggerType.routine:
+        return Icons.star_rounded;
+    }
+  }
+}

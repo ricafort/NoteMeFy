@@ -1,0 +1,26 @@
+# NoteMeFy Development Tasks
+
+- [x] **1. Project Setup & Foundational Architecture**
+  - [x] **Initialize Flutter Project:** Create a new Flutter project, remove counter app boilerplate.
+  - [x] **Configure Theme:** Set up a pure Black AMOLED theme (background: `Colors.black`, text: `Colors.white`, accents: vibrant colors or glassmorphism).
+  - [x] **Setup Dependency Injection (Riverpod):** Configure `ProviderScope` at the root of the app.
+- [ ] Core Data Layer
+  - [ ] Create Note data model
+  - [ ] Setup Hive local database repository
+- [ ] Application Logic
+  - [ ] Implement Notification Service for "Tonight/Custom" triggers
+  - [ ] Implement Location Service stub for "Home/Work" geofences
+  - [ ] Implement Audio & Haptic services
+- [ ] UI Implementation
+  - [ ] Create true-dark AMOLED app theme
+  - [ ] Build Capture Screen with auto-focusing invisible text field
+  - [ ] Build Glassmorphic Smart Trigger Bar (Home, Work, Tonight, Custom, Pro)
+  - [ ] Build "Throw" gesture area with animations
+  - [ ] Build Review Screen (Swipe Down to View/Start/Stop notes)
+- [ ] Premium / Monetization (NoteMeFy Pro)
+  - [ ] Implement Freemium check logic (hide recurring/routine triggers)
+  - [ ] Create simple Pro Upgrade paywall UI
+- [ ] Integration & Polish
+  - [ ] Wire UI to State controllers (Riverpod)
+  - [ ] Trigger audio and haptics on user actions
+  - [ ] Verify instant launch and 3-tap UX flow

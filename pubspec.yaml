@@ -47,7 +47,7 @@ dependencies:
   flutter_local_notifications: 17.1.2
   hooks_riverpod: ^3.3.1
   quick_actions: ^1.1.0
-  geofence_service: ^6.0.0+1
+  native_geofence: ^1.2.1
 
 dev_dependencies:
   flutter_test:

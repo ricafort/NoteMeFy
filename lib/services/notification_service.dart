@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:notemefy/domain/models/note.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -11,16 +12,18 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-  Future<void> init() async {
+  Future<void> init({bool isBackground = false}) async {
     tz.initializeTimeZones();
     
-    // Request permissions for iOS/Android 13+
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+    if (!isBackground) {
+      // Request permissions for iOS/Android 13+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    }
 
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings initializationSettingsDarwin = DarwinInitializationSettings();
@@ -32,9 +35,13 @@ class NotificationService {
   }
 
   Future<void> scheduleTonightTrigger(Note note) async {
-    // Schedule for 8:00 PM today, or tomorrow if it's already past 8:00 PM
+    // Read the user's preferred "Tonight" time
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('tonight_hour') ?? 20;   // Default 8:00 PM
+    final minute = prefs.getInt('tonight_minute') ?? 0;
+
     final now = DateTime.now();
-    var scheduledDate = DateTime(now.year, now.month, now.day, 20, 0); // 8:00 PM
+    var scheduledDate = DateTime(now.year, now.month, now.day, hour, minute);
     if (now.isAfter(scheduledDate)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }

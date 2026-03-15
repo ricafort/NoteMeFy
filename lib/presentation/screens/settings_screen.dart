@@ -1,8 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:notemefy/services/font_settings_service.dart';
 import 'package:notemefy/services/haptic_service.dart';
 import 'package:notemefy/services/location_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Provides the current "Tonight" time locally for the UI to display reactively
+final tonightTimeProvider = NotifierProvider<TonightTimeNotifier, TimeOfDay>(
+  () {
+    return TonightTimeNotifier();
+  },
+);
+
+// TUTORIAL: Riverpod 2.0 State Management
+// In older Riverpod, we used `StateNotifier`. But it was often clunky to initialize asynchronous data immediately.
+// The new `Notifier<T>` pattern provides a safe `build()` method where we can set our default state
+// while simultaneously firing off an async `_loadTime()` fetch. When `state` is mutated later,
+// the UI instantly rebuilds where `ref.watch(tonightTimeProvider)` is called!
+class TonightTimeNotifier extends Notifier<TimeOfDay> {
+  @override
+  TimeOfDay build() {
+    _loadTime();
+    return const TimeOfDay(hour: 20, minute: 0);
+  }
+
+  Future<void> _loadTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('tonight_hour') ?? 20;
+    final minute = prefs.getInt('tonight_minute') ?? 0;
+    state = TimeOfDay(hour: hour, minute: minute);
+  }
+
+  Future<void> updateTime(TimeOfDay newTime) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('tonight_hour', newTime.hour);
+    await prefs.setInt('tonight_minute', newTime.minute);
+    state = newTime;
+  }
+}
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -165,6 +201,65 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       );
                     }
+                  },
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'Time Triggers',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Consumer(
+                  builder: (context, WidgetRef ref, _) {
+                    final tonightTime = ref.watch(tonightTimeProvider);
+                    // Format time (e.g., 8:00 PM)
+                    final formattedTime = tonightTime.format(context);
+
+                    return _buildLocationButton(
+                      context,
+                      ref,
+                      icon: Icons.nightlight_round,
+                      title: 'Tonight Trigger Time',
+                      subtitle: 'Currently set to $formattedTime',
+                      onTap: () async {
+                        ref.read(hapticServiceProvider).click();
+                        final TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: tonightTime,
+                          builder: (context, child) {
+                            return Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Colors.blueAccent,
+                                  onPrimary: Colors.white,
+                                  surface: Color(0xFF1E1E1E),
+                                  onSurface: Colors.white,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          ref
+                              .read(tonightTimeProvider.notifier)
+                              .updateTime(picked);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Tonight trigger set to ${picked.format(context)} 🌙',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    );
                   },
                 ),
                 const SizedBox(height: 32),

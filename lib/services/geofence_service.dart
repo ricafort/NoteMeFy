@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geofence_service/geofence_service.dart';
+import 'package:native_geofence/native_geofence.dart';
 import 'package:notemefy/domain/models/note.dart';
 import 'package:notemefy/services/location_service.dart';
 import 'package:notemefy/services/notification_service.dart';
@@ -11,69 +11,46 @@ final geofenceServiceProvider = Provider<AppGeofenceService>((ref) {
   return AppGeofenceService();
 });
 
-// TUTORIAL: We use @pragma('vm:entry-point') here so the Dart compiler doesn't
-// tree-shake (remove) this function. It needs to be accessible natively by iOS/Android
-// when the app is completely killed, because background geofence callbacks run in a
-// separate "Isolate" (a background thread).
+// TUTORIAL: Background Isolates 
+// When the app is terminated and the phone enters a geofence, the OS wakes the app up invisibly.
+// Dart uses an "Isolate" (a separate memory space/thread) to run code without touching the UI.
+// `@pragma('vm:entry-point')` prevents the Flutter compiler from deleting this function during tree-shaking
+// so the OS can always find it when it needs to be triggered!
 @pragma('vm:entry-point')
-Future<void> geofenceTaskCallback(
-  Geofence geofence,
-  GeofenceRadius geofenceRadius,
-  GeofenceStatus geofenceStatus,
-  Location location,
-) async {
-  // Required since this runs in a separate background isolate
+Future<void> geofenceTriggered(GeofenceCallbackParams params) async {
+  // TUTORIAL: We must ensure Flutter is ready to run Dart code from cold storage before doing anything
   WidgetsFlutterBinding.ensureInitialized();
 
-  // If the user enters the region
-  if (geofenceStatus == GeofenceStatus.ENTER) {
-    // TUTORIAL: We use SharedPreferences here instead of Hive or Riverpod because
-    // background isolates don't share memory with the main app. Spinning up complex
-    // database connections in the background can cause crashes or memory limits.
-    // Key/value storage is perfect for passing small strings across thread boundaries.
+  if (params.event == GeofenceEvent.enter) {
     final prefs = await SharedPreferences.getInstance();
-    final noteContent =
-        prefs.getString('note_${geofence.id}') ??
-        'You have a new captured idea here!';
-
+    // TUTORIAL: The background thread isn't allowed to draw Permission Dialogs to the screen.
+    // If we call a standard initialization that requests location/notification permissions here,
+    // the OS throws a fatal exception and immediately kills our background thread.
+    // Hence, `isBackground: true` skips the UI permission request!
     final notificationService = NotificationService();
-    await notificationService.init();
+    await notificationService.init(isBackground: true);
 
-    // Hash the ID to an int for the notification ID
-    int notifId = geofence.id.hashCode;
+    for (final geofence in params.geofences) {
+      final noteContent =
+          prefs.getString('note_${geofence.id}') ??
+          'You have a new captured idea here!';
 
-    await notificationService.showNotification(
-      id: notifId,
-      title: 'Location Reminder 📍',
-      body: noteContent,
-    );
+      int notifId = geofence.id.hashCode;
+
+      await notificationService.showNotification(
+        id: notifId,
+        title: 'Location Reminder 📍',
+        body: noteContent,
+      );
+    }
   }
 }
 
 class AppGeofenceService {
-  final _geofenceService = GeofenceService.instance.setup(
-    interval: 5000,
-    accuracy: 100,
-    loiteringDelayMs: 60000,
-    statusChangeDelayMs: 10000,
-    useActivityRecognition: false,
-    allowMockLocations: false,
-    printDevLog: true,
-    geofenceRadiusSortType: GeofenceRadiusSortType.DESC,
-  );
-
   AppGeofenceService();
 
-  void initialize() {
-    _geofenceService.addGeofenceStatusChangeListener((
-      geofence,
-      radius,
-      status,
-      location,
-    ) async {
-      // Foreground callback (also optionally fires same notification)
-      await geofenceTaskCallback(geofence, radius, status, location);
-    });
+  Future<void> initialize() async {
+    // Initialization is called globally in main.dart via NativeGeofenceManager.instance.initialize();
   }
 
   Future<void> registerLocationTrigger(Note note) async {
@@ -98,8 +75,6 @@ class AppGeofenceService {
     
     // Background location usually needs 'always'
     if (permission == geo.LocationPermission.whileInUse) {
-       // Ideally trigger a dialog here directing them to settings, 
-       // but for now proceed to try and grab current location
        debugPrint('Warning: Location permission is whileInUse, background geofencing might be unreliable.');
     }
 
@@ -127,24 +102,28 @@ class AppGeofenceService {
 
       final geofence = Geofence(
         id: note.id,
-        latitude: targetLat,
-        longitude: targetLng,
-        radius: [
-          GeofenceRadius(id: 'radius_100m', length: 100),
-        ],
+        location: Location(latitude: targetLat, longitude: targetLng),
+        radiusMeters: 100,
+        triggers: {GeofenceEvent.enter},
+        iosSettings: IosGeofenceSettings(
+          initialTrigger: false, 
+        ),
+        androidSettings: AndroidGeofenceSettings(
+          initialTriggers: {GeofenceEvent.enter},
+          expiration: const Duration(days: 365), 
+          notificationResponsiveness: const Duration(minutes: 0),
+        ),
       );
 
       try {
-        _geofenceService.addGeofence(geofence);
-        _geofenceService.start([geofence]).catchError((onError) {
-          debugPrint('Geofence service start error: $onError');
-        });
+        await NativeGeofenceManager.instance.createGeofence(geofence, geofenceTriggered);
+        debugPrint('Registered native geofence for note ${note.id}');
       } catch (e) {
-        debugPrint('Geofence service start error: $e');
+        debugPrint('Geofence create/register error: $e');
       }
 
     } catch (e) {
-      debugPrint('Error registering geofence: $e');
+      debugPrint('Error preparing geofence: $e');
     }
   }
 }

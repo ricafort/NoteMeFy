@@ -5,6 +5,7 @@ import 'package:notemefy/data/repositories/note_repository.dart';
 import 'package:notemefy/presentation/screens/capture_screen.dart';
 import 'package:notemefy/services/quick_action_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:native_geofence/native_geofence.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -24,6 +25,13 @@ void main() async {
   final noteRepo = NoteRepository();
   await noteRepo.init();
   await Hive.openBox('settingsBox');
+
+  // Initialize native background geofencing OS listeners
+  try {
+    await NativeGeofenceManager.instance.initialize();
+  } catch (e) {
+    debugPrint('native_geofence setup error: $e');
+  }
 
   runApp(
     ProviderScope(

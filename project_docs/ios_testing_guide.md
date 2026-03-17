@@ -13,6 +13,12 @@ This guide provides step-by-step instructions on how to test NoteMeFy's backgrou
    ```
    *(Note: Since you are on an M5 Mac, if you run into ruby/ffi errors, you may need to use Homebrew: `brew install cocoapods`)*
 
+### 🤖 The "AntiGravity" Shortcut
+If you have **AntiGravity** installed on your Mac, you can skip steps 2, 3, and 4 above! Simply open the `NoteMeFy` project folder on your Mac, open the AntiGravity chat, and ask:
+> *"Hey, please read **project_docs/ios_testing_guide.md** and set up my iOS Simulator environment to run this app."*
+
+AntiGravity will automatically install Cocoapods, verify your Xcode setup, boot up the correct iOS Simulator, and run the app for you.
+
 ## 2. Verify iOS Permissions (Info.plist)
 
 Apple has extremely strict location permission rules. Before running the app, ensure your `ios/Runner/Info.plist` file contains the necessary keys. 

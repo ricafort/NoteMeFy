@@ -1,6 +1,9 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:notemefy/domain/models/note.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:native_geofence/native_geofence.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 // TUTORIAL: We use Riverpod's Provider to inject our bare repository class.
 // This decouples the UI from the database implementation, allowing us to swap
@@ -37,7 +40,19 @@ class NoteRepository {
   }
 
   Future<void> deleteNote(String id) async {
+    // 1. Delete from simple local storage
     await _box.delete(id);
+    
+    // 2. Clear out any background OS geofences so we don't get ghost notifications
+    try {
+      await NativeGeofenceManager.instance.removeGeofenceById(id);
+      
+      // Cleanup the background string as well
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('note_$id');
+    } catch (e) {
+      debugPrint('Error cleaning up geofence for deleted note: $e');
+    }
   }
 
   List<Note> getAllNotes() {

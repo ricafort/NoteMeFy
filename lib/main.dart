@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:notemefy/data/repositories/note_repository.dart';
 import 'package:notemefy/presentation/screens/capture_screen.dart';
+import 'package:notemefy/presentation/screens/review_screen.dart';
 import 'package:notemefy/services/quick_action_service.dart';
+import 'package:notemefy/services/notification_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:native_geofence/native_geofence.dart';
 
@@ -43,18 +45,36 @@ void main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
     QuickActionService().init(navigatorKey);
+    // Initialize notifications to handle taps while the app is foregrounded or starting up
+    ref.read(notificationServiceProvider).init();
+    
+    // Handle the case where the app was completely terminated and launched via a notification tap
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final details = await ref.read(notificationServiceProvider).flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+      if (details != null && details.didNotificationLaunchApp && details.notificationResponse != null) {
+        final payload = details.notificationResponse?.payload;
+        if (payload != null && navigatorKey.currentState != null) {
+          navigatorKey.currentState!.push(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/review'),
+              builder: (context) => ReviewScreen(initialNoteId: payload),
+            ),
+          );
+        }
+      }
+    });
   }
 
   @override

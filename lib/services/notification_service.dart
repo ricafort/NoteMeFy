@@ -4,13 +4,25 @@ import 'package:notemefy/domain/models/note.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
+import 'package:notemefy/presentation/screens/review_screen.dart';
+import 'package:notemefy/main.dart';
+import 'package:rxdart/rxdart.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService();
+  return NotificationService(navigatorKey: navigatorKey);
 });
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  // We need the navigatorKey to navigate when a notification is tapped
+  final GlobalKey<NavigatorState>? navigatorKey;
+  
+  // Stream to allow UI components to listen to payload taps when already foregrounded
+  final BehaviorSubject<String?> payloadStream = BehaviorSubject<String?>();
+
+  NotificationService({this.navigatorKey});
 
   Future<void> init({bool isBackground = false}) async {
     tz.initializeTimeZones();
@@ -31,7 +43,46 @@ class NotificationService {
       android: initializationSettingsAndroid,
       iOS: initializationSettingsDarwin,
     );
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    await flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // When user taps the notification
+        debugPrint('NoteMeFy: Notification tapped with payload: ${response.payload}');
+        if (response.payload != null) {
+          debugPrint('NoteMeFy: Sink payload to stream: ${response.payload}');
+          payloadStream.add(response.payload);
+          
+          if (navigatorKey != null && navigatorKey!.currentState != null) {
+            bool isReviewScreenOpen = false;
+            
+            // Pop any extraneous bottom sheets or settings screens that might be active
+            navigatorKey!.currentState?.popUntil((route) {
+              if (route.settings.name == '/review') {
+                isReviewScreenOpen = true;
+              }
+              return route.isFirst || route.settings.name == '/review';
+            });
+
+            if (isReviewScreenOpen) {
+              // We are already on ReviewScreen. Just sink the payload to open the specific sheet.
+              payloadStream.add(response.payload);
+            } else {
+              // We are on the CaptureScreen. Push a fresh ReviewScreen.
+              navigatorKey!.currentState?.push(
+                MaterialPageRoute(
+                  settings: const RouteSettings(name: '/review'),
+                  builder: (context) => ReviewScreen(initialNoteId: response.payload),
+                ),
+              );
+            }
+          }
+        }
+      },
+    );
+  }
+
+  void dispose() {
+    payloadStream.close();
   }
 
   Future<void> scheduleTonightTrigger(Note note) async {
@@ -74,6 +125,7 @@ class NotificationService {
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      payload: note.id,
     );
   }
 
@@ -81,7 +133,7 @@ class NotificationService {
     await flutterLocalNotificationsPlugin.cancel(noteId.hashCode);
   }
 
-  Future<void> showNotification({required int id, required String title, required String body}) async {
+  Future<void> showNotification({required int id, required String title, required String body, String? payload}) async {
     await flutterLocalNotificationsPlugin.show(
       id,
       title,
@@ -96,6 +148,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
+      payload: payload ?? id.toString(), // We can use note.id or a generic identifier
     );
   }
 }

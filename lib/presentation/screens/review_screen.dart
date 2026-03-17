@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:notemefy/data/repositories/note_repository.dart';
 import 'package:notemefy/domain/models/note.dart';
@@ -8,11 +9,46 @@ import 'package:intl/intl.dart';
 import 'package:notemefy/presentation/screens/settings_screen.dart';
 import 'package:notemefy/services/font_settings_service.dart';
 
-class ReviewScreen extends ConsumerWidget {
-  const ReviewScreen({super.key});
+class ReviewScreen extends ConsumerStatefulWidget {
+  final String? initialNoteId;
+
+  const ReviewScreen({super.key, this.initialNoteId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReviewScreen> createState() => _ReviewScreenState();
+}
+
+class _ReviewScreenState extends ConsumerState<ReviewScreen> {
+  bool _hasOpenedInitialNote = false;
+  StreamSubscription<String?>? _payloadSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _payloadSub = ref.read(notificationServiceProvider).payloadStream.listen((payload) {
+        if (payload != null && mounted) {
+           debugPrint('NoteMeFy: ReviewScreen Stream caught payload tap: $payload');
+           
+           // We must check if the notes are available in provider already:
+           final notes = ref.read(notesStreamProvider).value;
+           if (notes != null) {
+              final targetNote = notes.where((n) => n.id == payload).firstOrNull;
+              if (targetNote != null) {
+                showNoteEditSheet(context, ref, ref.read(fontSettingsProvider), targetNote);
+              }
+           }
+        }
+    });
+  }
+
+  @override
+  void dispose() {
+    _payloadSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Watch the reactive stream of notes
     final notesAsync = ref.watch(notesStreamProvider);
 
@@ -53,6 +89,22 @@ class ReviewScreen extends ConsumerWidget {
               ),
             );
           }
+
+          if (widget.initialNoteId != null && !_hasOpenedInitialNote) {
+            debugPrint('NoteMeFy: ReviewScreen received initialNoteId: ${widget.initialNoteId}');
+            final targetNote = notes.where((n) => n.id == widget.initialNoteId).firstOrNull;
+            debugPrint('NoteMeFy: Found matching note: ${targetNote != null}');
+            if (targetNote != null) {
+              _hasOpenedInitialNote = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                 if (mounted) {
+                   debugPrint('NoteMeFy: Automatically opening edit sheet for ${targetNote.id}');
+                   showNoteEditSheet(context, ref, ref.read(fontSettingsProvider), targetNote);
+                 }
+              });
+            }
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: notes.length,
@@ -87,7 +139,7 @@ class _NoteCard extends ConsumerWidget {
     final settings = ref.watch(fontSettingsProvider);
 
     return GestureDetector(
-      onTap: () => _showEditSheet(context, ref, settings),
+      onTap: () => showNoteEditSheet(context, ref, settings, note),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
@@ -185,84 +237,6 @@ class _NoteCard extends ConsumerWidget {
   );
 }
 
-  void _showEditSheet(BuildContext context, WidgetRef ref, FontSettings settings) {
-    final textController = TextEditingController(text: note.content);
-    
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1A1A1A),
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-              ),
-              child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Edit Idea', style: TextStyle(color: Colors.white54, fontSize: 14)),
-                const SizedBox(height: 16),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: TextField(
-                      controller: textController,
-                      autofocus: true,
-                      maxLines: null,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: settings.fontSize * 0.7,
-                        height: 1.4,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Type an idea...',
-                        hintStyle: TextStyle(color: Colors.white24),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: () async {
-                      if (textController.text.trim().isEmpty) return;
-                      ref.read(hapticServiceProvider).click();
-                      
-                      final updated = note.copyWith(content: textController.text.trim());
-                      await ref.read(noteRepositoryProvider).updateNote(updated);
-                      
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text('Update Note', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-    );
-  }
-
   IconData _getIconForTrigger(TriggerType type) {
     switch (type) {
       case TriggerType.home:
@@ -277,4 +251,87 @@ class _NoteCard extends ConsumerWidget {
         return Icons.star_rounded;
     }
   }
+}
+
+void showNoteEditSheet(BuildContext context, WidgetRef ref, FontSettings settings, Note note) async {
+  final textController = TextEditingController(text: note.content);
+  
+  // Wait slightly to ensure any screen push transition is completely finished 
+  // before attempting to render a ModalBottomSheet on top of it.
+  await Future.delayed(const Duration(milliseconds: 350));
+  if (!context.mounted) return;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+            ),
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Edit Idea', style: TextStyle(color: Colors.white54, fontSize: 14)),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: TextField(
+                    controller: textController,
+                    autofocus: true,
+                    maxLines: null,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: settings.fontSize * 0.7,
+                      height: 1.4,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Type an idea...',
+                      hintStyle: TextStyle(color: Colors.white24),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () async {
+                    if (textController.text.trim().isEmpty) return;
+                    ref.read(hapticServiceProvider).click();
+                    
+                    final updated = note.copyWith(content: textController.text.trim());
+                    await ref.read(noteRepositoryProvider).updateNote(updated);
+                    
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Update Note', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  },
+  );
 }

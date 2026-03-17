@@ -13,6 +13,7 @@ Welcome to **NoteMeFy**! Whether you are a brand new Flutter developer or just j
 
 *   **Providers (Riverpod)**: Imagine a Provider as a walkie-talkie channel. One part of the app broadcasts data on channel `fontSettingsProvider`, and the `SettingsScreen` simply tunes into that channel using `ref.watch(fontSettingsProvider)` to hear any changes.
 *   **Isolates (Background Execution)**: Flutter normally runs all its UI on one main highway (thread). An "Isolate" is a parallel dirt-road that can do heavy lifting (like checking your GPS location) while the app is closed, without slowing down or touching the main UI highway.
+*   **Streams (RxDart)**: Think of a Stream like a conveyor belt. When an event happens in the invisible background (like a notification tap), it is placed on the conveyor belt. The UI screen watches the end of the belt and reacts the moment a new item arrives.
 *   **SharedPreferences**: A tiny filing cabinet where we store simple key-value settings (like "Theme = Dark" or "Tonight Hour = 8"). Perfect for quick reads!
 
 ## 🗺️ The Project Map

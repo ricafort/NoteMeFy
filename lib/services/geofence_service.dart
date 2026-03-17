@@ -35,13 +35,16 @@ Future<void> geofenceTriggered(GeofenceCallbackParams params) async {
           prefs.getString('note_${geofence.id}') ??
           'You have a new captured idea here!';
 
+      debugPrint('NoteMeFy: Geofence triggered for ID: ${geofence.id}');
       int notifId = geofence.id.hashCode;
 
       await notificationService.showNotification(
         id: notifId,
         title: 'Location Reminder 📍',
         body: noteContent,
+        payload: geofence.id,
       );
+      debugPrint('NoteMeFy: Fired background notification with payload: ${geofence.id}');
     }
   }
 }

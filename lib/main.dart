@@ -8,6 +8,7 @@ import 'package:notemefy/services/quick_action_service.dart';
 import 'package:notemefy/services/notification_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:native_geofence/native_geofence.dart';
+import 'package:notemefy/services/geofence_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -34,6 +35,10 @@ void main() async {
   } catch (e) {
     debugPrint('native_geofence setup error: $e');
   }
+
+  // Cleanup orphaned geofences using AppGeofenceService
+  final geofenceService = AppGeofenceService();
+  await geofenceService.syncGeofencesWithNotes(noteRepo.getActiveNotes());
 
   runApp(
     ProviderScope(

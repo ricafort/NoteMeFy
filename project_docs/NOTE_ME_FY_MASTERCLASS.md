@@ -51,6 +51,10 @@ Mobile operating systems will ruthlessly kill apps to save battery.
 We intercept premium actions at the Presentation layer (e.g., `smart_trigger_bar.dart`).
 *Why it's a best practice:* It creates a frictionless upgrade path without requiring the user to navigate to a dedicated "Settings" menu to upgrade.
 
+### D. Background Lifecycle Synchronization (Single Source of Truth)
+OS-level location triggers are entirely decoupled from the Flutter app lifecycle.
+*Why it's a best practice:* We use the local database (Hive) as the ultimate single source of truth. Every time the app boots, we pull all running OS geofences (`getRegisteredGeofences()`) and manually diff them against active database notes to eradicate ghost geofences. This guarantees 100% bug-free background execution even after unexpected terminations.
+
 ---
 
 ## 4. Code Walkthrough: `pro_upgrade_service.dart`

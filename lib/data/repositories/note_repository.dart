@@ -37,6 +37,15 @@ class NoteRepository {
 
   Future<void> updateNote(Note note) async {
     await _box.put(note.id, note);
+    
+    // Clear out any background OS geofences if disabled so we don't get ghost notifications
+    if (!note.isActive) {
+      try {
+        await NativeGeofenceManager.instance.removeGeofenceById(note.id);
+      } catch (e) {
+        debugPrint('Error cleaning up geofence for updated inactive note: $e');
+      }
+    }
   }
 
   Future<void> deleteNote(String id) async {

@@ -8,6 +8,7 @@ import 'package:notemefy/services/notification_service.dart';
 import 'package:intl/intl.dart';
 import 'package:notemefy/presentation/screens/settings_screen.dart';
 import 'package:notemefy/services/font_settings_service.dart';
+import 'package:native_geofence/native_geofence.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   final String? initialNoteId;
@@ -209,6 +210,11 @@ class _NoteCard extends ConsumerWidget {
                       if (!val) {
                         // Cancel the notification if the note is disabled
                         await ref.read(notificationServiceProvider).cancelNotification(note.id);
+                        try {
+                          await NativeGeofenceManager.instance.removeGeofenceById(note.id);
+                        } catch (e) {
+                          debugPrint('Error cleaning geofence on disable: $e');
+                        }
                       } else {
                         // Reschedule if re-enabled (simplified tonight logic for now)
                         if (note.triggerType == TriggerType.tonight) {

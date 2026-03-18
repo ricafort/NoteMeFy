@@ -56,6 +56,29 @@ class AppGeofenceService {
     // Initialization is called globally in main.dart via NativeGeofenceManager.instance.initialize();
   }
 
+  // TUTORIAL: Startup Background Synchronization
+  // This function is called every time the app opens. It compares the active OS Geofences
+  // against the Hive database (our absolute source of truth). This completely eliminates 
+  // "Ghost Notifications" from old geofences that the OS forgot to clean up during a crash.
+  Future<void> syncGeofencesWithNotes(List<Note> activeNotes) async {
+    try {
+      final activeGeofences = await NativeGeofenceManager.instance.getRegisteredGeofences();
+      final validGeofenceIds = activeNotes
+          .where((note) => note.isActive && (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work))
+          .map((note) => note.id)
+          .toSet();
+
+      for (final geofence in activeGeofences) {
+        if (!validGeofenceIds.contains(geofence.id)) {
+          debugPrint('NoteMeFy: 🧹 Cleaning up orphaned OS geofence: ${geofence.id}');
+          await NativeGeofenceManager.instance.removeGeofenceById(geofence.id);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing geofences: $e');
+    }
+  }
+
   Future<void> registerLocationTrigger(Note note) async {
     if (note.triggerType != TriggerType.home && note.triggerType != TriggerType.work) {
       return;

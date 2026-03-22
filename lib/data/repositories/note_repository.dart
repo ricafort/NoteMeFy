@@ -45,6 +45,10 @@ class NoteRepository {
       } catch (e) {
         debugPrint('Error cleaning up geofence for updated inactive note: $e');
       }
+    } else if (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work) {
+      // Keep SharedPreferences string in sync so background isolate doesn't fire stale textual idea
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('note_${note.id}', note.content);
     }
   }
 

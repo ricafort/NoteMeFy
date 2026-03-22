@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:notemefy/presentation/screens/settings_screen.dart';
 import 'package:notemefy/services/font_settings_service.dart';
 import 'package:native_geofence/native_geofence.dart';
+import 'package:notemefy/services/geofence_service.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   final String? initialNoteId;
@@ -219,6 +220,21 @@ class _NoteCard extends ConsumerWidget {
                         // Reschedule if re-enabled (simplified tonight logic for now)
                         if (note.triggerType == TriggerType.tonight) {
                           await ref.read(notificationServiceProvider).scheduleTonightTrigger(updated);
+                        } else if (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work) {
+                          bool success = await ref.read(geofenceServiceProvider).registerLocationTrigger(updated);
+                          if (!success) {
+                            // Revert toggle
+                            await ref.read(noteRepositoryProvider).updateNote(note.copyWith(isActive: false));
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Failed to re-enable location trigger. Check permissions and App Settings.', style: TextStyle(color: Colors.white)),
+                                  backgroundColor: Colors.redAccent,
+                                  duration: Duration(seconds: 4),
+                                )
+                              );
+                            }
+                          }
                         }
                       }
                     },

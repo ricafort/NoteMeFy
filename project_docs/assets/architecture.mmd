@@ -1,0 +1,19 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffcc00', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#fff0f0'}}}%%
+flowchart TD
+    User([User])
+    UI[Flutter Presentation Layer\nCapture Screen / Note UI]
+    State[Riverpod 3.0 Notifiers\nState Management]
+    Storage[(Hive Local Database\nInstant Synchronous Storage)]
+    BackgroundIso[[Background Dart Isolate\nNo UI Context]]
+    OSGeofence{{Android/iOS Core Geofence}}
+    Notif{{flutter_local_notifications plugin}}
+
+    User -->|Types Note & Sets Location| UI
+    UI -->|Dispatches| State
+    State <-->|Persist/Retrieve| Storage
+    State -->|Register Location Trigger| OSGeofence
+    
+    OSGeofence -.-|App Terminated| OSGeofence
+    OSGeofence -->|User Enters Area| BackgroundIso
+    BackgroundIso -->|Initialize Plugin| Notif
+    Notif -->|Fires Push Notification| User

@@ -51,7 +51,20 @@ class _ThrowActionAreaState extends ConsumerState<ThrowActionArea> {
       await ref.read(notificationServiceProvider).scheduleTonightTrigger(note);
     } else if (triggerType == TriggerType.home || triggerType == TriggerType.work) {
       // Register OS-level geofence
-      await ref.read(geofenceServiceProvider).registerLocationTrigger(note);
+      bool success = await ref.read(geofenceServiceProvider).registerLocationTrigger(note);
+      if (!success) {
+         await ref.read(noteRepositoryProvider).deleteNote(note.id);
+         if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed. Ensure App Settings has your Home/Work Location and "Allow all the time" permission granted.', style: TextStyle(color: Colors.white)),
+                backgroundColor: Colors.redAccent,
+                duration: Duration(seconds: 4),
+              )
+            );
+         }
+         return;
+      }
     }
 
     // Reset UI

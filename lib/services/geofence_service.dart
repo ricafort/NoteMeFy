@@ -63,10 +63,11 @@ class AppGeofenceService {
   Future<void> syncGeofencesWithNotes(List<Note> activeNotes) async {
     try {
       final activeGeofences = await NativeGeofenceManager.instance.getRegisteredGeofences();
-      final validGeofenceIds = activeNotes
-          .where((note) => note.isActive && (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work))
-          .map((note) => note.id)
-          .toSet();
+      final activeGeofenceIds = activeGeofences.map((g) => g.id).toSet();
+
+      final validLocationNotes = activeNotes
+          .where((note) => note.isActive && (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work));
+      final validGeofenceIds = validLocationNotes.map((note) => note.id).toSet();
 
       for (final geofence in activeGeofences) {
         if (!validGeofenceIds.contains(geofence.id)) {
@@ -74,20 +75,27 @@ class AppGeofenceService {
           await NativeGeofenceManager.instance.removeGeofenceById(geofence.id);
         }
       }
+
+      for (final note in validLocationNotes) {
+        if (!activeGeofenceIds.contains(note.id)) {
+          debugPrint('NoteMeFy: 🔄 Restoring missing OS geofence: ${note.id}');
+          await registerLocationTrigger(note);
+        }
+      }
     } catch (e) {
       debugPrint('Error syncing geofences: $e');
     }
   }
 
-  Future<void> registerLocationTrigger(Note note) async {
+  Future<bool> registerLocationTrigger(Note note) async {
     if (note.triggerType != TriggerType.home && note.triggerType != TriggerType.work) {
-      return;
+      return false;
     }
 
     bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       debugPrint('Location service disabled');
-      return;
+      return false;
     }
 
     geo.LocationPermission permission = await geo.Geolocator.checkPermission();
@@ -95,13 +103,22 @@ class AppGeofenceService {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
         debugPrint('Location permission denied');
-        return;
+        return false;
       }
     }
     
-    // Background location usually needs 'always'
+    if (permission == geo.LocationPermission.deniedForever) {
+      debugPrint('Location permission denied forever');
+      return false;
+    }
+    
+    // Background location requires 'always' permission on modern OSes to be reliable
     if (permission == geo.LocationPermission.whileInUse) {
-       debugPrint('Warning: Location permission is whileInUse, background geofencing might be unreliable.');
+       debugPrint('Warning: Location permission is whileInUse, requesting always for background reliability.');
+       permission = await geo.Geolocator.requestPermission();
+       if (permission == geo.LocationPermission.denied || permission == geo.LocationPermission.deniedForever) {
+          return false;
+       }
     }
 
     try {
@@ -120,7 +137,7 @@ class AppGeofenceService {
 
       if (targetLat == null || targetLng == null) {
         debugPrint('Error: Saved location for ${note.triggerType.name} not found.');
-        return;
+        return false;
       }
 
       // Save the note content so the background isolate can read it
@@ -144,12 +161,15 @@ class AppGeofenceService {
       try {
         await NativeGeofenceManager.instance.createGeofence(geofence, geofenceTriggered);
         debugPrint('Registered native geofence for note ${note.id}');
+        return true;
       } catch (e) {
         debugPrint('Geofence create/register error: $e');
+        return false;
       }
 
     } catch (e) {
       debugPrint('Error preparing geofence: $e');
+      return false;
     }
   }
 }

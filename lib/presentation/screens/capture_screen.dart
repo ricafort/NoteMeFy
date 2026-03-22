@@ -20,7 +20,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    // Request focus instantly for the zero-ui <0.5s experience
+    // TUTORIAL: The "Zero-UI" experience relies on the keyboard appearing the millisecond the app opens.
+    // By requesting focus in the post-frame callback, we bypass typical Flutter route transition delays
+    // and force the natively-backed keyboard to display instantly.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_focusNode);
       ref.read(geofenceServiceProvider).initialize();

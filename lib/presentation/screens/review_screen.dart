@@ -146,9 +146,9 @@ class _NoteCard extends ConsumerWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isBusiness ? Colors.amber.withOpacity(0.3) : Colors.white.withOpacity(0.1)),
+          border: Border.all(color: isBusiness ? Colors.amber.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
         ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +179,7 @@ class _NoteCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
+                    color: Colors.amber.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text('WORK', style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -238,7 +238,8 @@ class _NoteCard extends ConsumerWidget {
                         }
                       }
                     },
-                    activeColor: Colors.blueAccent,
+                    activeTrackColor: Colors.blueAccent.withValues(alpha: 0.5),
+                    activeThumbColor: Colors.blueAccent,
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.white38),

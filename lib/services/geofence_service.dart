@@ -146,8 +146,8 @@ class AppGeofenceService {
       final geofence = Geofence(
         id: note.id,
         location: Location(latitude: targetLat, longitude: targetLng),
-        radiusMeters: 100,
-        triggers: {GeofenceEvent.enter},
+        radiusMeters: 150,
+        triggers: {GeofenceEvent.enter, GeofenceEvent.exit},
         iosSettings: IosGeofenceSettings(
           initialTrigger: false, 
         ),

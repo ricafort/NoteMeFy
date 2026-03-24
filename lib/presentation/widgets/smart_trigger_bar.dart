@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:notemefy/domain/models/note.dart';
-import 'package:notemefy/presentation/screens/pro_upgrade_screen.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:notemefy/services/haptic_service.dart';
 import 'package:notemefy/services/pro_upgrade_service.dart';
 
@@ -68,8 +68,8 @@ class SmartTriggerBar extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildTriggerButton(context, ref, TriggerType.home, Icons.home_rounded, 'Home', currentTrigger),
-                _buildTriggerButton(context, ref, TriggerType.work, Icons.business_rounded, 'Work', currentTrigger),
+                _buildTriggerButton(context, ref, TriggerType.home, Icons.home_rounded, 'Home', currentTrigger, isProFeature: true),
+                _buildTriggerButton(context, ref, TriggerType.work, Icons.business_rounded, 'Work', currentTrigger, isProFeature: true),
                 _buildTriggerButton(context, ref, TriggerType.tonight, Icons.nights_stay_rounded, 'Tonight', currentTrigger),
                 
                 Builder(
@@ -120,19 +120,7 @@ class SmartTriggerBar extends ConsumerWidget {
         ref.read(hapticServiceProvider).click();
         
         if (isProFeature && !userHasPro) {
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const ProUpgradeScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                const begin = Offset(0.0, 1.0);
-                const end = Offset.zero;
-                const curve = Curves.easeOutCubic;
-                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                return SlideTransition(position: animation.drive(tween), child: child);
-              },
-            ),
-          );
+          await RevenueCatUI.presentPaywallIfNeeded("NoteMeFy Pro");
           return;
         }
 
@@ -184,24 +172,12 @@ class SmartTriggerBar extends ConsumerWidget {
     final isPro = ref.watch(proUpgradeProvider);
     
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         ref.read(hapticServiceProvider).click();
         
         if (!isPro) {
           // Force Upgrade
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const ProUpgradeScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                const begin = Offset(0.0, 1.0);
-                const end = Offset.zero;
-                const curve = Curves.easeOutCubic;
-                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                return SlideTransition(position: animation.drive(tween), child: child);
-              },
-            ),
-          );
+          await RevenueCatUI.presentPaywallIfNeeded("NoteMeFy Pro");
         } else {
           // Toggle Tag if they have PRO
           if (isBusiness) {

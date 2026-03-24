@@ -1,40 +1,63 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 final proUpgradeProvider = NotifierProvider<ProStatusNotifier, bool>(ProStatusNotifier.new);
 
-// TUTORIAL: In Riverpod 3.0, `Notifier` replaces the old `StateNotifier`. 
-// It allows us to hold a single piece of mutable state (in this case, a boolean).
-// When we change `state = true`, any UI watching this provider automatically rebuilds!
 class ProStatusNotifier extends Notifier<bool> {
-  final _box = Hive.box('settingsBox');
-  static const _proStatusKey = 'is_pro_unlocked';
+  static const _apiKey = 'test_SdYXSEPWWgGvxSLaOcOyEfMkLgv';
+  static const _entitlementId = 'NoteMeFy Pro';
 
-  // TUTORIAL: The build method is called completely synchronously when the app boots.
-  // Because Hive is incredibly fast and memory-mapped, we don't have to await it.
-  // This means our UI can render instantly without a "loading" spinner!
   @override
   bool build() {
-    return _box.get(_proStatusKey, defaultValue: false);
+    // Start by assuming false until RevenueCat initializes
+    _initRevenueCat();
+    return false;
   }
 
-  Future<void> unlockPro() async {
-    // Simulate network/store delay
-    await Future.delayed(const Duration(seconds: 1));
-    await _box.put(_proStatusKey, true);
-    state = true;
+  Future<void> _initRevenueCat() async {
+    try {
+      if (kDebugMode) {
+        await Purchases.setLogLevel(LogLevel.debug);
+      }
+
+      PurchasesConfiguration configuration;
+      if (Platform.isAndroid || Platform.isIOS) {
+        configuration = PurchasesConfiguration(_apiKey);
+        await Purchases.configure(configuration);
+        
+        // Listen for changes (e.g., successful purchase, expiration)
+        Purchases.addCustomerInfoUpdateListener((customerInfo) {
+          _updateState(customerInfo);
+        });
+        
+        // Get current status immediately
+        final initialInfo = await Purchases.getCustomerInfo();
+        _updateState(initialInfo);
+      }
+    } catch (e) {
+      debugPrint('Error initializing RevenueCat: $e');
+    }
+  }
+
+  void _updateState(CustomerInfo info) {
+    try {
+      final isPro = info.entitlements.all[_entitlementId]?.isActive ?? false;
+      if (state != isPro) {
+        state = isPro;
+      }
+    } catch (e) {
+      debugPrint('Error updating RevenueCat state: $e');
+    }
   }
 
   Future<void> restorePurchases() async {
-    // Simulate network/store delay
-    await Future.delayed(const Duration(seconds: 1));
-    // In a real app we'd check RevenueCat/StoreKit. For MVP we'll just check local state
-    // For testing purposes, let's say restoring just verifies the local flag.
-    state = _box.get(_proStatusKey, defaultValue: false);
-  }
-  
-  Future<void> resetProForTesting() async {
-    await _box.put(_proStatusKey, false);
-    state = false;
+    try {
+      final customerInfo = await Purchases.restorePurchases();
+      _updateState(customerInfo);
+    } catch (e) {
+      debugPrint('Error restoring purchases: $e');
+    }
   }
 }

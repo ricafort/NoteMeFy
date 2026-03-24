@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:notemefy/data/repositories/note_repository.dart';
 import 'package:notemefy/domain/models/note.dart';
 import 'package:notemefy/services/haptic_service.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
+import 'package:notemefy/services/pro_upgrade_service.dart';
 import 'package:notemefy/services/notification_service.dart';
 import 'package:intl/intl.dart';
 import 'package:notemefy/presentation/screens/settings_screen.dart';
@@ -219,6 +221,16 @@ class _NoteCard extends ConsumerWidget {
                     value: note.isActive,
                     onChanged: (val) async {
                       ref.read(hapticServiceProvider).click();
+                      
+                      // Intercept Premium Location Features
+                      if (val && (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work)) {
+                        final isPro = ref.read(proUpgradeProvider);
+                        if (!isPro) {
+                          await RevenueCatUI.presentPaywallIfNeeded("NoteMeFy Pro");
+                          return;
+                        }
+                      }
+                      
                       final updated = note.copyWith(isActive: val);
                       await ref.read(noteRepositoryProvider).updateNote(updated);
                       

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:notemefy/presentation/screens/review_screen.dart';
 import 'package:notemefy/main.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(navigatorKey: navigatorKey);
@@ -26,6 +27,12 @@ class NotificationService {
 
   Future<void> init({bool isBackground = false}) async {
     tz.initializeTimeZones();
+    try {
+      final timeZoneInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneInfo.identifier));
+    } catch (e) {
+      debugPrint('Could not get local timezone: $e');
+    }
     
     if (!isBackground) {
       // Request permissions for iOS/Android 13+
@@ -85,7 +92,7 @@ class NotificationService {
     payloadStream.close();
   }
 
-  Future<void> scheduleTonightTrigger(Note note) async {
+  Future<DateTime> scheduleTonightTrigger(Note note) async {
     // Read the user's preferred "Tonight" time
     final prefs = await SharedPreferences.getInstance();
     final hour = prefs.getInt('tonight_hour') ?? 20;   // Default 8:00 PM
@@ -98,15 +105,17 @@ class NotificationService {
     }
 
     await _scheduleNotification(note, scheduledDate);
+    return scheduledDate;
   }
 
-  Future<void> scheduleCustomTrigger(Note note, DateTime scheduledDate) async {
+  Future<DateTime> scheduleCustomTrigger(Note note, DateTime scheduledDate) async {
     await _scheduleNotification(note, scheduledDate);
+    return scheduledDate;
   }
 
   Future<void> _scheduleNotification(Note note, DateTime scheduledDate) async {
     // We use the ID hashcode as the notification ID
-    final int notificationId = note.id.hashCode;
+    final int notificationId = note.id.hashCode.abs();
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       notificationId,
@@ -115,7 +124,7 @@ class NotificationService {
       tz.TZDateTime.from(scheduledDate, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'notemefy_channel',
+          'notemefy_channel_v2',
           'NoteMeFy Reminders',
           channelDescription: 'Reminders for your notes',
           importance: Importance.max,

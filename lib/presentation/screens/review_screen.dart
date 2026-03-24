@@ -195,9 +195,23 @@ class _NoteCard extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                DateFormat('MMM d, h:mm a').format(note.createdAt),
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('MMM d, h:mm a').format(note.createdAt),
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    if (note.triggerValue != null && (note.triggerType == TriggerType.tonight || note.triggerType == TriggerType.custom)) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Scheduled:\n${DateFormat('MMM d, h:mm a').format(DateTime.tryParse(note.triggerValue!) ?? note.createdAt)}',
+                        style: const TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               Row(
                 children: [
@@ -219,7 +233,16 @@ class _NoteCard extends ConsumerWidget {
                       } else {
                         // Reschedule if re-enabled (simplified tonight logic for now)
                         if (note.triggerType == TriggerType.tonight) {
-                          await ref.read(notificationServiceProvider).scheduleTonightTrigger(updated);
+                          final newDt = await ref.read(notificationServiceProvider).scheduleTonightTrigger(updated);
+                          await ref.read(noteRepositoryProvider).updateNote(updated.copyWith(triggerValue: newDt.toIso8601String()));
+                        } else if (note.triggerType == TriggerType.custom && note.triggerValue != null) {
+                          final dt = DateTime.tryParse(note.triggerValue!);
+                          if (dt != null && dt.isAfter(DateTime.now())) {
+                             await ref.read(notificationServiceProvider).scheduleCustomTrigger(updated, dt);
+                          } else {
+                             // Revert toggle if it's already past
+                             await ref.read(noteRepositoryProvider).updateNote(updated.copyWith(isActive: false));
+                          }
                         } else if (note.triggerType == TriggerType.home || note.triggerType == TriggerType.work) {
                           bool success = await ref.read(geofenceServiceProvider).registerLocationTrigger(updated);
                           if (!success) {

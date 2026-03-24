@@ -46,9 +46,21 @@ class _ThrowActionAreaState extends ConsumerState<ThrowActionArea> {
 
     await ref.read(noteRepositoryProvider).addNote(note);
 
+    DateTime? scheduledFor;
+
     // Schedule notification if Tonight
     if (triggerType == TriggerType.tonight) {
-      await ref.read(notificationServiceProvider).scheduleTonightTrigger(note);
+      scheduledFor = await ref.read(notificationServiceProvider).scheduleTonightTrigger(note);
+    } else if (triggerType == TriggerType.custom) {
+      final customTime = ref.read(selectedCustomTimeProvider);
+      if (customTime != null) {
+        final now = DateTime.now();
+        var scheduledDate = DateTime(now.year, now.month, now.day, customTime.hour, customTime.minute);
+        if (now.isAfter(scheduledDate)) {
+          scheduledDate = scheduledDate.add(const Duration(days: 1));
+        }
+        scheduledFor = await ref.read(notificationServiceProvider).scheduleCustomTrigger(note, scheduledDate);
+      }
     } else if (triggerType == TriggerType.home || triggerType == TriggerType.work) {
       // Register OS-level geofence
       bool success = await ref.read(geofenceServiceProvider).registerLocationTrigger(note);
@@ -67,15 +79,30 @@ class _ThrowActionAreaState extends ConsumerState<ThrowActionArea> {
       }
     }
 
+    if (scheduledFor != null) {
+      final updatedNote = note.copyWith(triggerValue: scheduledFor.toIso8601String());
+      await ref.read(noteRepositoryProvider).updateNote(updatedNote);
+    }
+
     // Reset UI
     widget.onThrowComplete();
     
+    String message = 'Note caught for ${triggerType.name}';
+    if (scheduledFor != null) {
+      final h = scheduledFor.hour;
+      final m = scheduledFor.minute;
+      final isPm = h >= 12;
+      final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+      final displayM = m.toString().padLeft(2, '0');
+      message = 'Note caught! Scheduled for $displayH:$displayM ${isPm ? 'PM' : 'AM'}';
+    }
+
     if (mounted) {
        ScaffoldMessenger.of(context).showSnackBar(
          SnackBar(
-           content: Text('Note caught for ${triggerType.name}', style: const TextStyle(color: Colors.white)),
+           content: Text(message, style: const TextStyle(color: Colors.white)),
            backgroundColor: Colors.grey[900],
-           duration: const Duration(milliseconds: 1500),
+           duration: const Duration(milliseconds: 2500),
            behavior: SnackBarBehavior.floating,
          )
        );

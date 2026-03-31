@@ -10,6 +10,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:native_geofence/native_geofence.dart';
 import 'package:notemefy/services/geofence_service.dart';
 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -42,18 +44,31 @@ void main() async {
   final geofenceService = AppGeofenceService();
   await geofenceService.syncGeofencesWithNotes(noteRepo.getActiveNotes());
 
+  // Extract the launch payload BEFORE initialize() is ever called.
+  // On iOS, if we wait until the app builds to check this, the delegate event is natively dropped.
+  String? initialPayload;
+  try {
+    final details = await FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails();
+    if (details != null && details.didNotificationLaunchApp && details.notificationResponse != null) {
+      initialPayload = details.notificationResponse?.payload;
+    }
+  } catch (e) {
+    debugPrint('NoteMeFy: Failed to get launch details early: $e');
+  }
+
   runApp(
     ProviderScope(
       overrides: [
         noteRepositoryProvider.overrideWithValue(noteRepo),
       ],
-      child: const MyApp(),
+      child: MyApp(initialPayload: initialPayload),
     ),
   );
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key});
+  final String? initialPayload;
+  const MyApp({super.key, this.initialPayload});
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
@@ -64,21 +79,24 @@ class _MyAppState extends ConsumerState<MyApp> {
   void initState() {
     super.initState();
     QuickActionService().init(navigatorKey);
-    // Initialize notifications to handle taps while the app is foregrounded or starting up
+    // Initialize synchronously so iOS does not drop the native cold-start notification event.
     ref.read(notificationServiceProvider).init();
-    
-    // Handle the case where the app was completely terminated and launched via a notification tap
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final details = await ref.read(notificationServiceProvider).flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
-      if (details != null && details.didNotificationLaunchApp && details.notificationResponse != null) {
-        final payload = details.notificationResponse?.payload;
-        if (payload != null && navigatorKey.currentState != null) {
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Prioritize the payload retrieved from main() before anything else!
+      // If none, check if the stream somehow caught one during synchronous init.
+      final payload = widget.initialPayload ?? ref.read(notificationServiceProvider).payloadStream.valueOrNull;
+
+      if (payload != null) {
+        if (navigatorKey.currentState != null) {
           navigatorKey.currentState!.push(
             MaterialPageRoute(
               settings: const RouteSettings(name: '/review'),
               builder: (context) => ReviewScreen(initialNoteId: payload),
             ),
           );
+          // Clear it so ReviewScreen doesn't process it a second time via stream listener
+          ref.read(notificationServiceProvider).payloadStream.add(null);
         }
       }
     });

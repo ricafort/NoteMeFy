@@ -24,6 +24,12 @@ class ProStatusNotifier extends Notifier<bool> {
 
       PurchasesConfiguration configuration;
       if (Platform.isAndroid || Platform.isIOS) {
+        // Prevent RevenueCat from fatally crashing the Profile/Release build with a test key
+        if (!kDebugMode && _apiKey.startsWith('test_')) {
+          debugPrint('WARNING: Bypassing RevenueCat init inside Profile/Release to prevent test_ key fatal crash.');
+          return;
+        }
+
         configuration = PurchasesConfiguration(_apiKey);
         await Purchases.configure(configuration);
         

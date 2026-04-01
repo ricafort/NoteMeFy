@@ -31,17 +31,23 @@ Now we create the public-facing store listing and securely link Apple's billing 
 4. Set the **Product ID / SKU** to a clear identifier (e.g., `notemefy_pro_lifetime`).
 5. Set the price and fill out the display name ("NoteMeFy Pro").
 
-### 3. Generate the Apple Shared Secret
-For RevenueCat to verify purchases on your behalf, you must give it a secret "key" to Apple's vault.
-1. Still in App Store Connect, go to **App Information**.
-2. Scroll down to **App-Specific Shared Secret** and click **Manage/Generate**.
-3. Copy this long alphanumeric string securely.
+### 3. Generate the StoreKit 2 In-App Purchase Key (.p8 file)
+RevenueCat requires a highly secure Apple key file to verify App Store purchases properly.
+1. In App Store Connect, go to the top navigation and click **Users and Access**.
+2. Near the top-left, click the **Integrations** tab.
+3. On the left sidebar, click **In-App Purchase**.
+4. Click the **+** (plus) button to generate a new key. Name it something like "RevenueCat Billing SDK".
+5. Click **Download API Key** (Note: Apple will only ever let you download this `.p8` file once!).
+6. Keep this page open, as you will need the "Key ID" and "Issuer ID" printed on the screen shortly.
 
 ### 4. Link RevenueCat
 1. Go to your [RevenueCat Dashboard](https://app.revenuecat.com).
-2. Under your Project, add an **App Store app**.
-3. Provide the Bundle ID (`com.ricafort.notemefy`) and paste the **App-Specific Shared Secret** you just copied.
-4. RevenueCat will instantly generate a public Apple API key (it starts with `appl_...`). **Copy this key.**
+2. Look at the left sidebar, expand **Apps & providers**, and click **Configurations**.
+3. Click the button to add a **New App Store app**.
+4. Input your Bundle ID (`com.ricafort.notemefy`).
+5. Upload the `.p8` file you just downloaded into the blue drop zone.
+6. Copy the **Key ID** and **Issuer ID** from the Apple App Store Connect page into the two remaining boxes and click save!
+7. Once linked, RevenueCat will instantly generate a public Apple App Store API key (it starts with `appl_...`). **Copy this key.**
 
 ---
 

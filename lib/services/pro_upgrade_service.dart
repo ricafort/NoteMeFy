@@ -6,7 +6,10 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 final proUpgradeProvider = NotifierProvider<ProStatusNotifier, bool>(ProStatusNotifier.new);
 
 class ProStatusNotifier extends Notifier<bool> {
-  static const _apiKey = 'test_SdYXSEPWWgGvxSLaOcOyEfMkLgv';
+  // TODO: Replace these with your actual RevenueCat Public API Keys!
+  static const _appleApiKey = 'appl_YOUR_APPLE_KEY_HERE';
+  static const _googleApiKey = 'goog_YOUR_GOOGLE_KEY_HERE';
+  
   static const _entitlementId = 'NoteMeFy Pro';
 
   @override
@@ -23,25 +26,24 @@ class ProStatusNotifier extends Notifier<bool> {
       }
 
       PurchasesConfiguration configuration;
-      if (Platform.isAndroid || Platform.isIOS) {
-        // Prevent RevenueCat from fatally crashing the Profile/Release build with a test key
-        if (!kDebugMode && _apiKey.startsWith('test_')) {
-          debugPrint('WARNING: Bypassing RevenueCat init inside Profile/Release to prevent test_ key fatal crash.');
-          return;
-        }
-
-        configuration = PurchasesConfiguration(_apiKey);
-        await Purchases.configure(configuration);
-        
-        // Listen for changes (e.g., successful purchase, expiration)
-        Purchases.addCustomerInfoUpdateListener((customerInfo) {
-          _updateState(customerInfo);
-        });
-        
-        // Get current status immediately
-        final initialInfo = await Purchases.getCustomerInfo();
-        _updateState(initialInfo);
+      if (Platform.isIOS) {
+        configuration = PurchasesConfiguration(_appleApiKey);
+      } else if (Platform.isAndroid) {
+        configuration = PurchasesConfiguration(_googleApiKey);
+      } else {
+        return; // Web/Desktop fallback
       }
+
+      await Purchases.configure(configuration);
+        
+      // Listen for changes (e.g., successful purchase, expiration)
+      Purchases.addCustomerInfoUpdateListener((customerInfo) {
+        _updateState(customerInfo);
+      });
+      
+      // Get current status immediately
+      final initialInfo = await Purchases.getCustomerInfo();
+      _updateState(initialInfo);
     } catch (e) {
       debugPrint('Error initializing RevenueCat: $e');
     }

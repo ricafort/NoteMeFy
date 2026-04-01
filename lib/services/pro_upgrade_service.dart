@@ -6,8 +6,8 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 final proUpgradeProvider = NotifierProvider<ProStatusNotifier, bool>(ProStatusNotifier.new);
 
 class ProStatusNotifier extends Notifier<bool> {
-  // TODO: Replace these with your actual RevenueCat Public API Keys!
-  static const _appleApiKey = 'appl_YOUR_APPLE_KEY_HERE';
+  // TODO: Replace Android key with actual RevenueCat Public API Key!
+  static const _appleApiKey = 'appl_VwzsOqdXwMNdArxFuSyWvISBNnc';
   static const _googleApiKey = 'goog_YOUR_GOOGLE_KEY_HERE';
   
   static const _entitlementId = 'NoteMeFy Pro';

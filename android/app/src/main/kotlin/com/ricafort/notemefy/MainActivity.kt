@@ -1,4 +1,4 @@
-package com.notemefy.app.notemefy
+package com.ricafort.notemefy
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
